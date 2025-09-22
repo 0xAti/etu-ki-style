@@ -1,159 +1,511 @@
 <!DOCTYPE html>
 <html lang="en">
 <head>
-<meta charset="UTF-8" />
-<meta name="viewport" content="width=device-width, initial-scale=1" />
-<title>Next Day Predictor</title>
-<style>
-  body {
-    font-family: 'Segoe UI', Tahoma, Geneva, Verdana, sans-serif;
-    background: linear-gradient(135deg, #0f2027, #203a43, #2c5364);
-    display: flex;
-    justify-content: center;
-    align-items: center;
-    height: 100vh;
-    margin: 0;
-    flex-direction: column;
-    text-align: center;
-    padding: 20px;
-    color: #e0e0e0;
-  }
-  h1 {
-    color: #00c6ff;
-    margin-bottom: 20px;
-    text-shadow: 0 0 12px #00c6ff;
-  }
-  select, button {
-    font-size: 1.2em;
-    padding: 10px 15px;
-    margin: 10px 0;
-    border-radius: 8px;
-    border: 2px solid #00c6ff;
-    background: transparent;
-    color: #e0e0e0;
-    cursor: pointer;
-    outline: none;
-    transition: all 0.3s ease;
-  }
-  select:focus, button:focus {
-    border-color: #00ffcc;
-    box-shadow: 0 0 12px #00ffcc;
-  }
-  button:hover {
-    background-color: #00c6ff;
-    color: #111;
-    box-shadow: 0 0 15px #00c6ff;
-  }
-  #loadingMessages {
-    margin-top: 25px;
-    font-size: 1.2em;
-    font-weight: bold;
-    min-height: 1.4em;
-    color: #00ffcc;
-    text-shadow: 0 0 8px #00ffcc;
-  }
-  #result {
-    margin-top: 20px;
-    font-size: 1.6em;
-    font-weight: bold;
-    color: #ffdf40;
-    text-shadow: 0 0 10px #ffdf40;
-    animation: fadeIn 1s ease-in-out;
-  }
-  footer {
-    margin-top: 40px;
-    font-size: 0.9em;
-    color: #999;
-  }
-  /* Loading spinner */
-  .spinner {
-    margin: 20px auto 0;
-    width: 40px;
-    height: 40px;
-    border: 4px solid #00c6ff;
-    border-top: 4px solid transparent;
-    border-radius: 50%;
-    animation: spin 1s linear infinite;
-    box-shadow: 0 0 15px #00c6ff;
-  }
-  @keyframes spin {
-    to { transform: rotate(360deg); }
-  }
-  @keyframes fadeIn {
-    from { opacity: 0; transform: translateY(10px); }
-    to { opacity: 1; transform: translateY(0); }
-  }
-</style>
+  <meta charset="utf-8" />
+  <meta name="viewport" content="width=device-width,initial-scale=1" />
+  <title>Memory Match — Unlimited Mistakes Edition</title>
+  <style>
+    :root{
+      --bg:#050a25; --card:#0f1724; --muted:#94a3b8; --accent:#fbbf24; --text:#e6eef8;
+      --glow: 0 0 12px rgba(251, 191, 36, 0.6);
+    }
+    *{box-sizing:border-box}
+    html,body{height:100%;margin:0;background:linear-gradient(180deg,#050a25,#0b1020);font-family:Inter,Segoe UI,Roboto,Arial;color:var(--text)}
+    .wrap{min-height:100%;display:flex;flex-direction:column;align-items:center;padding:18px;gap:12px}
+    header{width:100%;max-width:1100px;display:flex;justify-content:space-between;align-items:center}
+    h1{margin:0;color:var(--accent);text-shadow:var(--glow);font-size:2rem;position:relative}
+    h1::after{content:'';position:absolute;bottom:-5px;left:0;width:100%;height:2px;background:var(--accent);box-shadow:var(--glow)}
+    .meta{color:var(--muted);font-size:13px}
+    main{width:100%;max-width:1100px}
+    .board-wrap{display:flex;gap:18px;flex-wrap:wrap}
+    .panel{background:rgba(255,255,255,0.02);padding:12px;border-radius:12px;border:1px solid rgba(255,255,255,0.03);box-shadow:0 4px 12px rgba(0,0,0,0.2)}
+    .board{flex:1;min-width:280px;padding:18px;border-radius:12px;display:flex;align-items:center;justify-content:center;background:rgba(0,0,0,0.2)}
+    .grid{display:grid;gap:10px;justify-content:center}
+
+    /* card 3D shell */
+    .card { width:72px; height:72px; perspective:900px; }
+    .inner {
+      width:100%; height:100%;
+      border-radius:12px;
+      position:relative;
+      transform-style:preserve-3d;
+      transition:transform 420ms cubic-bezier(.2,.9,.3,1);
+      box-shadow:0 8px 18px rgba(2,6,23,0.6);
+      cursor:pointer;
+      outline: none;
+    }
+    .face {
+      position:absolute; inset:0; display:grid; place-items:center; border-radius:12px;
+      backface-visibility:hidden; -webkit-backface-visibility:hidden;
+      user-select:none;
+      font-size:34px;
+      transition: all 0.3s ease;
+    }
+
+    /* axis-specific face transforms so text remains upright */
+    /* Y-axis cards */
+    .axis-y .front { transform: rotateY(0deg); background:linear-gradient(135deg,#f8e7b4,#fde68a); color:#111; box-shadow:inset 0 0 10px rgba(0,0,0,0.1); }
+    .axis-y .back  { transform: rotateY(180deg); background:linear-gradient(180deg,#1a2c47,#08142a); color:var(--text); border:2px solid rgba(255,255,255,0.08); font-weight:700; font-size:20px; letter-spacing:1px; }
+
+    .axis-y .inner.preview { transform: rotateY(0deg); }   /* show front */
+    .axis-y .inner.flipped { transform: rotateY(180deg); }  /* show back */
+
+    /* X-axis cards */
+    .axis-x .front { transform: rotateX(0deg); background:linear-gradient(135deg,#f8e7b4,#fde68a); color:#111; box-shadow:inset 0 0 10px rgba(0,0,0,0.1); }
+    .axis-x .back  { transform: rotateX(180deg); background:linear-gradient(180deg,#1a2c47,#08142a); color:var(--text); border:2px solid rgba(255,255,255,0.08); font-weight:700; font-size:20px; letter-spacing:1px; }
+
+    .axis-x .inner.preview { transform: rotateX(0deg); }   /* show front */
+    .axis-x .inner.flipped { transform: rotateX(180deg); }  /* show back */
+
+    /* visual states */
+    .inner.revealed { box-shadow: 0 0 18px rgba(251,191,36,0.5); transform: scale(1.05); }
+    .card[data-matched="true"] .inner { box-shadow: 0 0 18px rgba(34,197,94,0.5); pointer-events:none; }
+    .card[data-matched="true"] .front { background: linear-gradient(135deg, #a7f3d0, #6ee7b7); }
+
+    /* responsive */
+    @media(max-width:420px){ .card{width:60px;height:60px} .face{font-size:28px} }
+
+    /* overlay/dialog */
+    .overlay{position:fixed;inset:0;display:none;align-items:center;justify-content:center;background:rgba(2,6,23,0.85);z-index:40;backdrop-filter:blur(5px)}
+    .overlay.show{display:flex;animation:fadeIn 0.3s ease}
+    .dialog{background:#071127;padding:24px;border-radius:16px;min-width:300px;color:var(--text);text-align:center;border:1px solid rgba(255,255,255,0.05);box-shadow:0 10px 30px rgba(0,0,0,0.3);transform:scale(0.9);animation:scaleIn 0.3s ease forwards}
+    .big{font-size:24px;font-weight:700;margin-bottom:10px;color:var(--accent);text-shadow:var(--glow)}
+    .btn{background:rgba(251,191,36,0.15);border:1px solid rgba(251,191,36,0.3);padding:10px 16px;border-radius:8px;color:var(--accent);cursor:pointer;transition:all .18s;font-weight:600}
+    .btn:hover{transform:translateY(-3px);background:rgba(251,191,36,0.25);box-shadow:var(--glow)}
+    .controls{width:260px;min-width:220px;display:flex;flex-direction:column;gap:10px}
+    .small{font-size:13px;color:var(--muted)}
+    .stat{display:flex;justify-content:space-between;align-items:center;padding:8px 0;border-bottom:1px solid rgba(255,255,255,0.05)}
+    .stat-value{font-weight:700;color:var(--accent)}
+    footer{margin-top:12px;color:var(--muted);font-size:13px}
+    
+    /* Animations */
+    @keyframes fadeIn {
+      from { opacity: 0; }
+      to { opacity: 1; }
+    }
+    
+    @keyframes scaleIn {
+      from { transform: scale(0.9); opacity: 0; }
+      to { transform: scale(1); opacity: 1; }
+    }
+    
+    @keyframes pulse {
+      0% { transform: scale(1); }
+      50% { transform: scale(1.05); }
+      100% { transform: scale(1); }
+    }
+    
+    @keyframes celebrate {
+      0% { transform: translateY(0) rotate(0); }
+      25% { transform: translateY(-10px) rotate(5deg); }
+      50% { transform: translateY(0) rotate(0); }
+      75% { transform: translateY(-5px) rotate(-5deg); }
+      100% { transform: translateY(0) rotate(0); }
+    }
+    
+    .pulse { animation: pulse 0.5s ease; }
+    .celebrate { animation: celebrate 0.6s ease; }
+    
+    /* Particles for celebration */
+    .particles {
+      position: fixed;
+      top: 0;
+      left: 0;
+      width: 100%;
+      height: 100%;
+      pointer-events: none;
+      z-index: 50;
+    }
+    
+    .particle {
+      position: absolute;
+      background: var(--accent);
+      border-radius: 50%;
+      opacity: 0;
+    }
+  </style>
 </head>
 <body>
-  <h1> Next Day Predictor </h1>
-  <label for="currentDay">Select the current day:</label><br />
-  <select id="currentDay" aria-label="Select the current day">
-    <option value="" disabled selected>Choose a day</option>
-    <option>Monday</option>
-    <option>Tuesday</option>
-    <option>Wednesday</option>
-    <option>Thursday</option>
-    <option>Friday</option>
-    <option>Saturday</option>
-    <option>Sunday</option>
-  </select><br />
-  <button onclick="startPrediction()" aria-live="polite">🔮 Predict Next Day</button>
+  <div class="wrap">
+    <header>
+      <div>
+        <h1>Memory Match — Unlimited Edition</h1>
+        <div class="meta">Preview first. Press <strong>Start</strong> to flip all to the backside (T) and begin.</div>
+      </div>
+      <div style="display:flex;gap:12px;align-items:center">
+        <div class="panel small">Level: <span id="level">1</span>/10</div>
+        <div class="panel small">Moves: <span id="moves">0</span></div>
+        <div class="panel small">Mistakes: <span id="mistakes">0</span></div>
+      </div>
+    </header>
 
-  <div id="loadingMessages" aria-live="polite"></div>
-  <div id="spinner" class="spinner" style="display:none;"></div>
-  <div id="result" role="alert"></div>
+    <main>
+      <div class="board-wrap">
+        <div class="board panel">
+          <div id="grid" class="grid" aria-live="polite"></div>
+        </div>
+
+        <div class="controls panel">
+          <div class="small" style="font-weight:700;margin-bottom:8px">Game Controls</div>
+          
+          <div class="stat">
+            <span>Pairs this level:</span>
+            <span class="stat-value" id="pairsCount">6</span>
+          </div>
+          
+          <div class="stat">
+            <span>Total moves:</span>
+            <span class="stat-value" id="totalMoves">0</span>
+          </div>
+          
+          <div class="stat">
+            <span>Mistakes:</span>
+            <span class="stat-value" id="totalMistakes">0</span>
+          </div>
+          
+          <div style="display:flex;gap:8px;margin-top:12px">
+            <button id="startBtn" class="btn">Start / Restart</button>
+            <button id="hintBtn" class="btn">Show Hint</button>
+          </div>
+        </div>
+      </div>
+    </main>
+
+    <footer>Match all pairs to advance to the next level</footer>
+  </div>
+
+  <!-- Overlay dialog -->
+  <div id="overlay" class="overlay" role="dialog" aria-modal="true">
+    <div class="dialog">
+      <div id="dialogTitle" class="big">Level Cleared!</div>
+      <div id="dialogText" style="margin-top:8px;color:var(--muted)"></div>
+      <div style="display:flex;gap:8px;justify-content:center;margin-top:16px">
+        <button id="nextBtn" class="btn">Next Level</button>
+        <button id="restartLevelBtn" class="btn">Restart Level</button>
+      </div>
+    </div>
+  </div>
+  
+  <!-- Particles container -->
+  <div class="particles" id="particles"></div>
 
 <script>
-  const loadingSteps = [
-    " Predicting the next day...",
-    " Gathering info from NASA...",
-    " Checking your chrome history...",
-    " Making final decision..."
-  ];
+  // emoji bank and level config
+  const EMOJIS = ['😀','😃','😄','😁','😆','😅','🤣','😂','🥲','🙃','🙂','😇','😊','😉','😌','😙','😗','😘','🥰','😍','🤗','😚','🤑','😜','😛','😝','🤪','🤩','🤨','😎','🧐','🤓'];
+  const LEVEL_PAIRS = [6,8,10,12,14,16,18,20,22,24];
 
-  function startPrediction() {
-    const currentDay = document.getElementById('currentDay').value;
-    const loadingDiv = document.getElementById('loadingMessages');
-    const resultDiv = document.getElementById('result');
-    const spinner = document.getElementById('spinner');
+  // state
+  let level = 1, moves = 0, totalMoves = 0, mistakes = 0, totalMistakes = 0;
+  let pairsThisLevel = LEVEL_PAIRS[level-1];
+  let firstCard = null, lockBoard = false, matchedPairs = 0, cardCount = 0, hintUsed = false, started=false;
+
+  // UI refs
+  const gridEl = document.getElementById('grid');
+  const levelEl = document.getElementById('level');
+  const movesEl = document.getElementById('moves');
+  const mistakesEl = document.getElementById('mistakes');
+  const totalMistakesEl = document.getElementById('totalMistakes');
+  const pairsCountEl = document.getElementById('pairsCount');
+  const totalMovesEl = document.getElementById('totalMoves');
+  const overlay = document.getElementById('overlay');
+  const dialogTitle = document.getElementById('dialogTitle');
+  const dialogText = document.getElementById('dialogText');
+  const nextBtn = document.getElementById('nextBtn');
+  const restartLevelBtn = document.getElementById('restartLevelBtn');
+  const startBtn = document.getElementById('startBtn');
+  const hintBtn = document.getElementById('hintBtn');
+  const particlesEl = document.getElementById('particles');
+
+  // helpers
+  function shuffle(a){ for(let i=a.length-1;i>0;i--){ const j=Math.floor(Math.random()*(i+1)); [a[i],a[j]]=[a[j],a[i]] } return a; }
+  function pickEmojis(n){ return shuffle(EMOJIS.slice()).slice(0,n); }
+  function getGridDimensions(pairs){ const cards=pairs*2; let cols=Math.ceil(Math.sqrt(cards)); return {cols, rows: Math.ceil(cards/cols)}; }
+
+  function createParticles(x, y, count = 10) {
+    for (let i = 0; i < count; i++) {
+      const particle = document.createElement('div');
+      particle.className = 'particle';
+      
+      const size = Math.random() * 8 + 2;
+      const angle = Math.random() * Math.PI * 2;
+      const speed = Math.random() * 200 + 100;
+      const duration = Math.random() * 1000 + 500;
+      
+      particle.style.width = `${size}px`;
+      particle.style.height = `${size}px`;
+      particle.style.left = `${x}px`;
+      particle.style.top = `${y}px`;
+      particle.style.background = `hsl(${Math.random() * 60 + 30}, 100%, 60%)`;
+      
+      particlesEl.appendChild(particle);
+      
+      // Animate particle
+      const animation = particle.animate([
+        { 
+          transform: `translate(0, 0)`,
+          opacity: 1
+        },
+        { 
+          transform: `translate(${Math.cos(angle) * speed}px, ${Math.sin(angle) * speed}px)`,
+          opacity: 0
+        }
+      ], {
+        duration: duration,
+        easing: 'cubic-bezier(0, .9, .57, 1)'
+      });
+      
+      animation.onfinish = () => particle.remove();
+    }
+  }
+
+  function buildGrid(pairs){
+    gridEl.innerHTML = '';
+    pairsCountEl.textContent = pairs;
+    const emojis = pickEmojis(pairs);
+    const deck = shuffle([...emojis, ...emojis]);
+    cardCount = deck.length;
+    const dims = getGridDimensions(pairs);
+    gridEl.style.gridTemplateColumns = `repeat(${dims.cols}, minmax(48px,72px))`;
+
+    deck.forEach((emoji, idx) => {
+      const axisClass = (idx % 2 === 0) ? 'axis-y' : 'axis-x';
+      const card = document.createElement('div');
+      card.className = `card ${axisClass}`;
+      card.dataset.index = idx;
+      card.dataset.emoji = emoji;
+      card.setAttribute('role','button');
+      card.setAttribute('tabindex','0');
+      card.setAttribute('aria-label', `Card ${idx+1}`);
+
+      const inner = document.createElement('div');
+      inner.className = 'inner preview'; // preview shows front
+      inner.setAttribute('tabindex','0');
+
+      const front = document.createElement('div');
+      front.className = 'face front';
+      front.innerHTML = `<span aria-hidden="true">${emoji}</span>`;
+
+      const back = document.createElement('div');
+      back.className = 'face back';
+      back.textContent = 'T';
+
+      inner.appendChild(front);
+      inner.appendChild(back);
+      card.appendChild(inner);
+      gridEl.appendChild(card);
+
+      // click & keyboard handlers on inner
+      inner.addEventListener('click', (e)=> {
+        if(!started) return; // only after pressing Start
+        if(card.dataset.matched === 'true') return;
+        flipCard(card, inner, e.clientX, e.clientY);
+      });
+      inner.addEventListener('keydown', (e) => {
+        if(!started) return;
+        if(card.dataset.matched === 'true') return;
+        if(e.key === 'Enter' || e.key === ' ') { 
+          e.preventDefault(); 
+          const rect = inner.getBoundingClientRect();
+          flipCard(card, inner, rect.left + rect.width/2, rect.top + rect.height/2); 
+        }
+      });
+    });
+  }
+
+  function resetLevelState(){
+    moves = 0; mistakes = 0; firstCard = null; lockBoard = false; matchedPairs = 0; hintUsed = false; started = false;
+    movesEl.textContent = moves; mistakesEl.textContent = mistakes; totalMovesEl.textContent = totalMoves; 
+    totalMistakesEl.textContent = totalMistakes; levelEl.textContent = level;
+  }
+
+  function startLevel(){
+    pairsThisLevel = LEVEL_PAIRS[level-1];
+    resetLevelState();
+    buildGrid(pairsThisLevel);
+    // preview shown by default — user inspects; pressing Start flips to backs (T)
+  }
+
+  function flipCard(card, inner, x, y){
+    if(lockBoard) return;
+    if(card.dataset.matched === 'true') return;
     
-    if (!currentDay) {
-      resultDiv.textContent = "⚠️ Please select a day first!";
-      loadingDiv.textContent = "";
-      spinner.style.display = "none";
+    // Add animation class
+    inner.classList.add('pulse');
+    setTimeout(() => inner.classList.remove('pulse'), 500);
+    
+    // If back is showing, remove 'flipped' to reveal front; else ignore if already revealed
+    if(inner.classList.contains('flipped')){
+      // reveal front
+      inner.classList.remove('flipped');
+      inner.classList.add('revealed');
+    } else if(!inner.classList.contains('revealed')){
+      // if somehow neither, show front
+      inner.classList.add('revealed');
+      inner.classList.remove('flipped');
+    } else {
+      // already revealed
       return;
     }
-    
-    // Reset UI
-    loadingDiv.textContent = "";
-    resultDiv.textContent = "";
-    spinner.style.display = "block";
 
-    // Show loading steps one by one every 2.5 seconds
-    let stepIndex = 0;
-
-    function showNextStep() {
-      if (stepIndex < loadingSteps.length) {
-        loadingDiv.textContent = loadingSteps[stepIndex];
-        stepIndex++;
-        setTimeout(showNextStep, 2500);
-      } else {
-        spinner.style.display = "none";
-        loadingDiv.textContent = "";
-        showResult(currentDay);
-      }
+    if(!firstCard){
+      firstCard = {card, inner};
+      return;
     }
 
-    showNextStep();
+    // second card selected
+    lockBoard = true;
+    moves++; totalMoves++;
+    movesEl.textContent = moves; totalMovesEl.textContent = totalMoves;
+
+    const second = {card, inner};
+    const a = firstCard.card.dataset.emoji;
+    const b = second.card.dataset.emoji;
+
+    if(a === b){
+      // match: mark matched and leave revealed
+      firstCard.card.dataset.matched = 'true';
+      second.card.dataset.matched = 'true';
+      firstCard.inner.classList.add('revealed');
+      second.inner.classList.add('revealed');
+      
+      // Celebrate with particles
+      const rect1 = firstCard.inner.getBoundingClientRect();
+      const rect2 = second.inner.getBoundingClientRect();
+      createParticles(rect1.left + rect1.width/2, rect1.top + rect1.height/2, 15);
+      createParticles(rect2.left + rect2.width/2, rect2.top + rect2.height/2, 15);
+      
+      firstCard = null;
+      lockBoard = false;
+      matchedPairs++;
+      if(matchedPairs === pairsThisLevel) setTimeout(showLevelCleared, 600);
+    } else {
+      // mismatch: flip back to backside 'T' after delay
+      mistakes++; totalMistakes++;
+      mistakesEl.textContent = mistakes;
+      totalMistakesEl.textContent = totalMistakes;
+      
+      setTimeout(()=>{
+        // flip both back to backside: remove 'revealed' and add 'flipped'
+        firstCard.inner.classList.remove('revealed');
+        firstCard.inner.classList.add('flipped');
+        second.inner.classList.remove('revealed');
+        second.inner.classList.add('flipped');
+        firstCard = null;
+        lockBoard = false;
+      }, 700);
+    }
   }
 
-  function showResult(currentDay) {
-    const days = ["Monday", "Tuesday", "Wednesday", "Thursday", "Friday", "Saturday", "Sunday"];
-    let nextIndex = (days.indexOf(currentDay) + 1) % days.length;
-    let predictedDay = days[nextIndex];
-    document.getElementById('result').textContent = ` Next day is ${predictedDay}!`;
+  function flipAllToBackside(){
+    // flip every inner to show back (T)
+    const inners = gridEl.querySelectorAll('.inner');
+    inners.forEach(i => {
+      i.classList.remove('preview');
+      i.classList.remove('revealed');
+      i.classList.add('flipped'); // back visible
+      // ensure parent matched attribute cleared
+      const parent = i.parentElement;
+      parent.removeAttribute('data-matched');
+    });
+    started = true;
   }
+
+  function showLevelCleared(){
+    // Add celebration animation to dialog
+    dialogTitle.classList.add('celebrate');
+    
+    if(level >= 10){
+      dialogTitle.textContent = '🎉 Congratulations — All Levels Cleared!';
+      dialogText.textContent = `You finished all 10 levels. Final score: ${totalMoves} moves with ${totalMistakes} mistakes.`;
+      nextBtn.style.display = 'none';
+      restartLevelBtn.textContent = 'Play Again';
+    } else {
+      dialogTitle.textContent = '✅ Level Cleared!';
+      dialogText.textContent = `Moves this level: ${moves}. Mistakes: ${mistakes}.`;
+      nextBtn.style.display = 'inline-block';
+      restartLevelBtn.textContent = 'Restart Level';
+    }
+    overlay.classList.add('show');
+    
+    // Create celebration particles
+    for (let i = 0; i < 30; i++) {
+      setTimeout(() => {
+        createParticles(
+          Math.random() * window.innerWidth,
+          Math.random() * window.innerHeight,
+          5
+        );
+      }, i * 100);
+    }
+  }
+
+  // UI events
+  nextBtn.addEventListener('click', ()=>{ 
+    overlay.classList.remove('show'); 
+    dialogTitle.classList.remove('celebrate');
+    level = Math.min(10, level+1); 
+    startLevel(); 
+  });
+  
+  restartLevelBtn.addEventListener('click', ()=>{ 
+    overlay.classList.remove('show'); 
+    dialogTitle.classList.remove('celebrate');
+    if(level>=10 && dialogTitle.textContent.includes('Congratulations')){ 
+      level=1; 
+      totalMoves=0; 
+      totalMistakes=0;
+    } 
+    startLevel(); 
+  });
+  
+  startBtn.addEventListener('click', ()=> {
+    if(!started) {
+      flipAllToBackside();
+      startBtn.textContent = "Restart Level";
+    } else {
+      // restart same level
+      startLevel();
+    }
+  });
+
+  hintBtn.addEventListener('click', ()=>{
+    if(!started) return; // only after Start
+    if(hintUsed) return;
+    hintUsed = true;
+    const inners = Array.from(gridEl.querySelectorAll('.inner'));
+    // reveal fronts briefly then flip back
+    inners.forEach(i => {
+      if(i.parentElement.dataset.matched !== 'true') {
+        i.classList.remove('flipped');
+        i.classList.add('revealed');
+      }
+    });
+    setTimeout(()=> {
+      inners.forEach(i => {
+        if(i.parentElement.dataset.matched !== 'true'){
+          i.classList.remove('revealed');
+          i.classList.add('flipped');
+        }
+      });
+    }, 900);
+  });
+
+  // keyboard 1..9 shortcuts (only after started)
+  window.addEventListener('keydown', e=>{
+    if(!started) return;
+    if(e.key >= '1' && e.key <= '9'){
+      const idx = parseInt(e.key,10) - 1;
+      const cards = gridEl.querySelectorAll('.card');
+      if(cards[idx]){
+        const inner = cards[idx].querySelector('.inner');
+        const rect = inner.getBoundingClientRect();
+        inner.click();
+      }
+    }
+  });
+
+  // init
+  startLevel();
 </script>
 </body>
 </html>
